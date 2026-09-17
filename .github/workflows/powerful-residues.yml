@@ -1,0 +1,52 @@
+name: Powerful pairs residue-class proof
+on:
+  push:
+    branches: [research/powerful-residues-20260918]
+    paths: ['research/powerful-residues/**', '.github/workflows/powerful-residues.yml']
+permissions:
+  contents: read
+jobs:
+  lean:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Install pinned Lean release
+        run: |
+          set -euo pipefail
+          curl --proto '=https' --tlsv1.2 -fsSL https://github.com/leanprover/lean4/releases/download/v4.32.1/lean-4.32.1-linux.tar.zst -o /tmp/lean.tar.zst
+          mkdir /tmp/lean
+          tar --zstd -xf /tmp/lean.tar.zst -C /tmp/lean --strip-components=1
+          echo /tmp/lean/bin >> "$GITHUB_PATH"
+      - name: Restore exact dependency revisions and build the complete source
+        working-directory: research/powerful-residues
+        run: |
+          set -euo pipefail
+          lean --version
+          python3 bootstrap.py
+          lake exe cache get
+          lake build 2>&1 | tee build.log
+          lake env lean -DwarningAsError=true Main.lean 2>&1 | tee audit.log
+          python3 - <<'PY'
+          import re
+          from pathlib import Path
+          text=Path('audit.log').read_text()
+          reports=dict(re.findall(r"'([^']+)' depends on axioms: \[([^\]]*)\]", text))
+          for n in re.findall(r"'([^']+)' does not depend on any axioms", text): reports[n]=''
+          expected={'PowerfulResidues.'+n for n in ['powerful_mul_square','nonsquare_mul_square','orbit_equation','term_strictMono','term_good','exists_residue_period','unbounded_in_seed_residue','seed_good','unbounded_counterexamples_in_every_seed_residue','jsp_000301_false']}
+          if set(reports)!=expected: raise SystemExit(f'Missing or unexpected audit declarations: {reports}')
+          for n, axioms in reports.items():
+              used={a.strip() for a in axioms.split(',') if a.strip()}
+              if used-{'propext','Classical.choice','Quot.sound'}: raise SystemExit(f'Unexpected axioms: {n}: {used}')
+          print('ALL TEN TARGET DECLARATIONS PASSED THE STANDARD-AXIOM AUDIT.')
+          PY
+          if command -v leanchecker >/dev/null 2>&1; then
+            lake env leanchecker --verbose Main 2>&1 | tee kernel-replay.log
+          else
+            echo 'Separate Lean-kernel replay executable unavailable; no replay is claimed.'
+          fi
+          echo "Checked source commit: $GITHUB_SHA"
+          sha256sum Main.lean lean-toolchain lakefile.toml lake-manifest.json bootstrap.py
+          echo 'Proof build only. Attribution, novelty, statement acceptance and any award remain subject to review.'
