@@ -1,0 +1,22 @@
+Erdos958Large
+Copyright (c) 2026 x2515102083.
+New formalization, build configuration, and documentation: Apache License 2.0.
+AI assistance: ChatGPT (GPT-6 Astra Pro).
+
+The mathematical short-arc-and-centre construction is due to Felix Christian
+Clemen, Adrian Dumitrescu, and Dingyuan Liu (2025), arXiv:2505.04283, Section 5.
+No new mathematical-discovery credit is claimed by x2515102083.
+
+Distance definitions and the original classification predicates/statement are
+adapted from google-deepmind/formal-conjectures at commit
+ d5ba143cc2fafd48cc6d5b6320a3aab287c38df7.
+Copyright 2025-2026 The Formal Conjectures Authors; Apache License 2.0.
+The corresponding notices and source references are retained in the Lean files.
+
+The prior full-family formalization linked in TheJustinSunPrize/awards issue 750
+is by KunHcz and is not this contributor's work. Its existence is disclosed in
+README.md. Neither priority nor prize eligibility is established here.
+
+The root repository's special licensing discussion about third-party Erdős 339
+proofs does not describe this standalone subproject. This directory's modules
+import only Mathlib and the two newly written local proof modules.
