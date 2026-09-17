@@ -1,0 +1,51 @@
+name: Complete target screening
+on:
+  push:
+    branches: [research/new-complete-20260918]
+    paths: ['.github/workflows/complete-screen.yml']
+permissions:
+  contents: read
+jobs:
+  screen:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Read public records and avoid duplicate submissions
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: python
+        run: |
+          import json, re, urllib.request, os, concurrent.futures
+          def api(path):
+              r=urllib.request.Request('https://api.github.com/'+path, headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'],'Accept':'application/vnd.github+json'})
+              with urllib.request.urlopen(r, timeout=45) as f:return json.load(f)
+          def raw(path):
+              with urllib.request.urlopen('https://raw.githubusercontent.com/'+path, timeout=45) as f:return f.read().decode()
+          ref=api('repos/TheJustinSunPrize/awards/commits/main')['sha']
+          print('CATALOG_COMMIT',ref)
+          issues=[]
+          for page in range(1,31):
+              chunk=api(f'repos/TheJustinSunPrize/awards/issues?state=all&per_page=100&page={page}')
+              issues+=chunk
+              if len(chunk)<100:break
+          else:raise RuntimeError('Issue pagination incomplete')
+          text='\n'.join((x['title']+'\n'+(x.get('body') or '')) for x in issues)
+          claimed=set(re.findall(r'JSP[- ]?(\d{6})',text,re.I))
+          print('ISSUES_AND_PRS',len(issues),'JSP_IDS_MENTIONED',len(claimed))
+          vols=[f'catalog-{i:04d}-{min(i+99,1022):04d}.md' for i in range(1,1023,100)]
+          def volume(v):return raw('TheJustinSunPrize/awards/'+ref+'/problems/'+v)
+          catalogs=list(concurrent.futures.ThreadPoolExecutor(4).map(volume,vols))
+          selected=[]
+          for v,t in zip(vols,catalogs):
+              for block in re.split(r'(?=## JSP-)',t):
+                  h=re.match(r'## JSP-(\d{6}) · (.*)',block)
+                  if not h:continue
+                  num,title=h.groups()
+                  if '| Current status | Solved' not in block or '| Lean proof | No |' not in block:continue
+                  if num in claimed:continue
+                  fields={k.strip():val.strip() for k,val in re.findall(r'^\| ([^|]+) \| (.*?) \|$',block,re.M)}
+                  selected.append((num,title,fields.get('Publication details',''),fields.get('Current status','')))
+          print('SOLVED_NO_LEAN_WITHOUT_JSP_MENTION',len(selected))
+          for num,title,pub,status in selected:
+              print('TARGET',num,title,'SOURCE',pub[:900],'STATUS',status)
+          print('Selection only. Absence of a JSP mention is not proof of novelty or eligibility. All candidates require original-statement and source review.')
