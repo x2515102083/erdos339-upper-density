@@ -1,0 +1,64 @@
+name: Erdos 772 pinned proof environment
+on:
+  push:
+    branches: [proof/erdos772-symmetry-20260918]
+    paths: ['.github/workflows/erdos772-environment.yml']
+permissions:
+  contents: read
+jobs:
+  environment:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Download the public pinned Lean release
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/proof-environment/lean /tmp/proof-environment/project
+          curl --proto '=https' --tlsv1.2 -fsSL https://github.com/leanprover/lean4/releases/download/v4.32.1/lean-4.32.1-linux.tar.zst -o /tmp/lean.tar.zst
+          tar --zstd -xf /tmp/lean.tar.zst -C /tmp/proof-environment/lean --strip-components=1
+          echo /tmp/proof-environment/lean/bin >> "$GITHUB_PATH"
+      - name: Prepare public Mathlib dependencies at the pinned revision
+        shell: bash
+        working-directory: /tmp/proof-environment/project
+        run: |
+          set -euo pipefail
+          printf 'leanprover/lean4:v4.32.1\n' > lean-toolchain
+          cat > lakefile.toml <<'EOF'
+          name = "Erdos772Symmetry"
+          version = "0.1.0"
+          defaultTargets = ["Core"]
+          [[require]]
+          name = "mathlib"
+          git = "https://github.com/leanprover-community/mathlib4.git"
+          rev = "520045ab14e26149ee970e2e617ca04b09bde5d6"
+          [[lean_lib]]
+          name = "Core"
+          EOF
+          printf 'import Mathlib\n' > Core.lean
+          mkdir -p .lake/packages/mathlib
+          git -C .lake/packages/mathlib init
+          git -C .lake/packages/mathlib remote add origin https://github.com/leanprover-community/mathlib4.git
+          git -C .lake/packages/mathlib fetch --depth=1 origin 520045ab14e26149ee970e2e617ca04b09bde5d6
+          git -C .lake/packages/mathlib checkout --detach 520045ab14e26149ee970e2e617ca04b09bde5d6
+          lake update
+          test "$(git -C .lake/packages/mathlib rev-parse HEAD)" = 520045ab14e26149ee970e2e617ca04b09bde5d6
+          lake exe cache get
+          lake env lean Core.lean
+          lean --version > environment.txt
+          sha256sum lean-toolchain lakefile.toml lake-manifest.json >> environment.txt
+          echo 'Environment preparation only; no Erdos theorem has been proved by this run.' >> environment.txt
+      - name: Archive public proof-development dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          tar --zstd -cf /tmp/erdos772-public-environment.tar.zst -C /tmp proof-environment
+          sha256sum /tmp/erdos772-public-environment.tar.zst
+          du -h /tmp/erdos772-public-environment.tar.zst
+      - name: Publish temporary reproducible development environment
+        uses: actions/upload-artifact@v4
+        with:
+          name: erdos772-public-environment
+          path: /tmp/erdos772-public-environment.tar.zst
+          compression-level: 0
+          retention-days: 2
