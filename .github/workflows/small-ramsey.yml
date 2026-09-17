@@ -1,0 +1,57 @@
+name: Complete small Ramsey counterexample
+on:
+  push:
+    branches: [research/prize-complete-20260918]
+    paths: ['research/erdos549-small/**', '.github/workflows/small-ramsey.yml']
+permissions:
+  contents: read
+concurrency:
+  group: small-ramsey-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  lean:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Install pinned Lean release
+        run: |
+          set -euo pipefail
+          curl --proto '=https' --tlsv1.2 -fsSL https://github.com/leanprover/lean4/releases/download/v4.32.1/lean-4.32.1-linux.tar.zst -o /tmp/lean.tar.zst
+          mkdir /tmp/lean
+          tar --zstd -xf /tmp/lean.tar.zst -C /tmp/lean --strip-components=1
+          echo /tmp/lean/bin >> "$GITHUB_PATH"
+      - name: Build and audit complete proof
+        working-directory: research/erdos549-small
+        run: |
+          set -euo pipefail
+          lean --version
+          mkdir -p .lake/packages/mathlib
+          git -C .lake/packages/mathlib init
+          git -C .lake/packages/mathlib remote add origin https://github.com/leanprover-community/mathlib4.git
+          git -C .lake/packages/mathlib fetch --depth=1 origin 520045ab14e26149ee970e2e617ca04b09bde5d6
+          git -C .lake/packages/mathlib checkout --detach 520045ab14e26149ee970e2e617ca04b09bde5d6
+          lake update
+          test "$(git -C .lake/packages/mathlib rev-parse HEAD)" = 520045ab14e26149ee970e2e617ca04b09bde5d6
+          lake exe cache get
+          lake build 2>&1 | tee build.log
+          lake env lean Small.lean 2>&1 | tee axioms.log
+          python3 - <<'PY'
+          import re
+          from pathlib import Path
+          text=Path('axioms.log').read_text()
+          reports=dict(re.findall(r"'([^']+)' depends on axioms: \[([^\]]*)\]",text))
+          for n in re.findall(r"'([^']+)' does not depend on any axioms",text): reports[n]=''
+          roots=['tree_isTree','blue_union_bound','blue_degree','red_degree','no_monochromatic_copy','ramsey_ne_35','not_erdos_549','explicit_counterexample']
+          expected={'Erdos549Small.'+n for n in roots}
+          if set(reports)!=expected: raise SystemExit(f'Missing or extra roots: {reports}')
+          for name,ax in reports.items():
+              used={a.strip() for a in ax.split(',') if a.strip()}
+              if not used <= {'propext','Classical.choice','Quot.sound'}:
+                  raise SystemExit(f'Unexpected axioms: {name}: {used}')
+          print('COMPLETE ORIGINAL-FORMULA NEGATION CHECKED. Not a prize decision or priority certification.')
+          PY
+          echo "Verified source: $GITHUB_SHA"
+          sha256sum Small.lean RamseyDefs.lean lean-toolchain lakefile.toml lake-manifest.json
