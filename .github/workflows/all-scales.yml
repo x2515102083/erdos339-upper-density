@@ -1,0 +1,40 @@
+name: Erdos 488 all-scales research checks
+on:
+  push:
+    branches: [research/erdos488-rounded-20260918]
+    paths: ['research/erdos488/all_scales_check.py', 'research/erdos488/independent_verify.py', '.github/workflows/all-scales.yml']
+permissions:
+  contents: read
+jobs:
+  reproduce:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Exact all-scales certificate generation
+        working-directory: research/erdos488
+        run: |
+          set -euo pipefail
+          python3 all_scales_check.py --n-max 20 --self-test --output all-scales-n20.json --certificates all-scales-n20-certificates.jsonl
+      - name: Independent implementation and expected-result audit
+        working-directory: research/erdos488
+        run: |
+          set -euo pipefail
+          python3 independent_verify.py all-scales-n20-certificates.jsonl 20 | tee independent-all-scales.json
+          python3 - <<'PY'
+          import json
+          r=json.load(open('all-scales-n20.json'))
+          q=json.load(open('independent-all-scales.json'))
+          expected='254c1f5513c540341bf8abc55d31f1bcd5f6602c6c1403eb839af36d6075be98'
+          assert r['certificate_sha256']==q['certificate_sha256']==expected
+          assert r['nonempty_primitive_sets']==q['nonempty_primitive_sets']==10239
+          assert r['finite_prefix_comparisons']==660619
+          assert r['exact_count_cross_checks']==q['independent_exact_count_checks']==2118650
+          assert r['maximum_n_tail']==1488 and r['maximum_m_tail']==540
+          assert q['all_subsets_screened']==524287 and q['finite_prefix_minimum_checks']==663031
+          print('REPRODUCED: all n,m and common scales for normalized generators <=20. Not the arbitrary-generator conjecture; not Lean enumeration.')
+          PY
+          echo "Checked source commit: $GITHUB_SHA"
+          sha256sum all_scales_check.py independent_verify.py all-scales-n20-certificates.jsonl
