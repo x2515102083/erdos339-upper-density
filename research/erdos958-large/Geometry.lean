@@ -20,8 +20,8 @@ noncomputable def chord (t : ℝ) (k : ℕ) : ℝ := dist (unit 0) (unit ((k : �
 
 lemma dist_sq (p q : Point) :
     dist p q ^ 2 = (p 0 - q 0) ^ 2 + (p 1 - q 1) ^ 2 := by
-  simp [dist_eq_norm, EuclideanSpace.norm_eq, Fin.sum_univ_two,
-    Real.sq_sqrt, add_nonneg (sq_nonneg _) (sq_nonneg _)]
+  simpa [dist_eq_norm, EuclideanSpace.norm_eq, Fin.sum_univ_two] using
+    Real.sq_sqrt (add_nonneg (sq_nonneg (p 0 - q 0)) (sq_nonneg (p 1 - q 1)))
 
 lemma unit_dist_sq (a b : ℝ) :
     dist (unit a) (unit b) ^ 2 = 2 - 2 * Real.cos (a - b) := by
@@ -32,7 +32,7 @@ lemma unit_dist_sq (a b : ℝ) :
 
 lemma unit_norm (a : ℝ) : dist (unit a) 0 = 1 := by
   have h := dist_sq (unit a) 0
-  simp [unit] at h
+  change dist (unit a) 0 ^ 2 = (Real.cos a - 0) ^ 2 + (Real.sin a - 0) ^ 2 at h
   have hn := dist_nonneg (x := unit a) (y := (0 : Point))
   nlinarith [Real.sin_sq_add_cos_sq a]
 
@@ -150,15 +150,5 @@ lemma no_common_line {t : ℝ} (hs : Real.sin t ≠ 0) :
 #print axioms arc_injOn
 #print axioms no_common_circle
 #print axioms no_common_line
-
--- Interface probes for the following finite-pair counting file.
-#check Sym2.eq_iff
-#check Sym2.eq_iff_eq_or_eq
-#check Finset.mk_mem_sym2_iff
-#check Finset.card_image_iff
-#check Finset.filter_image
-#check Finset.mem_offDiag
-#check Real.cos_lt_cos_of_nonneg_of_le_pi
-#check Real.sin_pos_of_pos_of_lt_pi
 
 end Erdos958Large

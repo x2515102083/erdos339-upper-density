@@ -28,32 +28,22 @@ jobs:
         run: |
           set -euo pipefail
           lean --version
-          python3 bootstrap.py
-          lake exe cache get
+          python3 bootstrap.py > /tmp/bootstrap.log 2>&1 || { cat /tmp/bootstrap.log; exit 1; }
+          grep PIN_VERIFIED /tmp/bootstrap.log
+          lake exe cache get > /tmp/cache.log 2>&1 || { cat /tmp/cache.log; exit 1; }
+          tail -n 3 /tmp/cache.log
           git diff --exit-code -- lean-toolchain lakefile.toml lake-manifest.json
-      - name: Read exact public distance definitions
-        shell: python
-        run: |
-          import io, tarfile, urllib.request
-          rev='d5ba143cc2fafd48cc6d5b6320a3aab287c38df7'
-          with urllib.request.urlopen(f'https://api.github.com/repos/google-deepmind/formal-conjectures/tarball/{rev}',timeout=60) as r:
-            data=r.read()
-          t=tarfile.open(fileobj=io.BytesIO(data),mode='r:gz')
-          for f in t.getmembers():
-            if not f.name.endswith('.lean') or 'Util' not in f.name: continue
-            s=t.extractfile(f).read().decode()
-            if 'def distanceMultiplicity' not in s and 'def distanceSet' not in s: continue
-            print('EXACT SOURCE',rev,f.name)
-            lines=s.splitlines()
-            for i,line in enumerate(lines):
-              if 'def distanceMultiplicity' in line or 'def distanceSet' in line:
-                print('\n'.join(lines[max(0,i-5):i+65]))
-      - name: Check all current research files without claiming completion
+      - name: Check geometry and counting independently
         working-directory: research/erdos549-small
         run: |
-          set -euo pipefail
+          set -uo pipefail
           cp ../erdos958-large/*.lean .
-          lake env lean -o Geometry.olean Geometry.lean 2>&1 | tee geometry.log
-          if [ -f Counting.lean ]; then lake env lean -o Counting.olean Counting.lean 2>&1 | tee counting.log; fi
-          if [ -f Complete.lean ]; then lake env lean -DwarningAsError=true Complete.lean 2>&1 | tee complete.log; fi
-          echo 'Checked only the files printed above. Award and priority review remain separate.'
+          export LEAN_PATH=".:$(lake env printenv LEAN_PATH)"
+          status=0
+          lake env lean -o Geometry.olean Geometry.lean 2>&1 | tee geometry.log || status=1
+          lake env lean -o Counting.olean Counting.lean 2>&1 | tee counting.log || status=1
+          if [ "$status" = 0 ] && [ -f Complete.lean ]; then
+            lake env lean -DwarningAsError=true Complete.lean 2>&1 | tee complete.log || status=1
+          fi
+          echo 'Only the files above were checked. This is not an award or priority decision.'
+          exit "$status"
