@@ -36,6 +36,7 @@ def sparseSet : Finset ℕ :=
 theorem sparse_structure :
     sparseSet.Nonempty ∧ IsPrimitive sparseSet ∧
     (∀ a ∈ sparseSet, 2 ≤ a ∧ a ≤ 228) ∧ sparseSet.gcd id = 1 := by
+  unfold IsPrimitive
   decide
 
 theorem sparse_values :
@@ -74,6 +75,7 @@ theorem tail_structure :
     primeTail.Nonempty ∧ (∀ v ∈ primeTail, 3 < v ∧ v ≤ 191) ∧
       IsPrimitive ({2, 3} ∪ primeTail) ∧
       (∀ p ∈ ({2, 3} ∪ primeTail : Finset ℕ), Nat.Prime p) := by
+  unfold IsPrimitive
   decide
 
 theorem split_values :
