@@ -1,6 +1,4 @@
-import Mathlib.Data.Nat.Interval
-import Mathlib.Data.Finset.Card
-import Mathlib.Tactic
+import Mathlib
 
 /-!
 Arithmetic reformulation of Erdős 488, not a proof of the conjecture.
@@ -43,7 +41,10 @@ theorem hits_dilate (A : Finset ℕ) {d : ℕ} (hd : 0 < d) (t : ℕ) :
   · rintro ⟨⟨hx1, hxt⟩, b, ⟨a, ha, rfl⟩, k, hk⟩
     refine ⟨a * k, ⟨⟨?_, ?_⟩, a, ha, ⟨k, rfl⟩⟩, ?_⟩
     · have heq : x = d * (a * k) := by simpa [Nat.mul_assoc] using hk
-      nlinarith
+      by_contra h
+      have hz : a * k = 0 := by omega
+      rw [hz, mul_zero] at heq
+      omega
     · apply (Nat.le_div_iff_mul_le hd).2
       nlinarith [show x = d * (a * k) by simpa [Nat.mul_assoc] using hk]
     · simpa [Nat.mul_assoc] using hk.symm
