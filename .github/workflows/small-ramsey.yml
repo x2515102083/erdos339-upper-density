@@ -23,35 +23,30 @@ jobs:
           mkdir /tmp/lean
           tar --zstd -xf /tmp/lean.tar.zst -C /tmp/lean --strip-components=1
           echo /tmp/lean/bin >> "$GITHUB_PATH"
-      - name: Build and audit complete proof
+      - name: Fetch all dependencies using the committed lockfile
         working-directory: research/erdos549-small
         run: |
           set -euo pipefail
           lean --version
-          mkdir -p .lake/packages/mathlib
-          git -C .lake/packages/mathlib init
-          git -C .lake/packages/mathlib remote add origin https://github.com/leanprover-community/mathlib4.git
-          git -C .lake/packages/mathlib fetch --depth=1 origin 520045ab14e26149ee970e2e617ca04b09bde5d6
-          git -C .lake/packages/mathlib checkout --detach 520045ab14e26149ee970e2e617ca04b09bde5d6
-          lake update
-          test "$(git -C .lake/packages/mathlib rev-parse HEAD)" = 520045ab14e26149ee970e2e617ca04b09bde5d6
+          python3 bootstrap.py
           lake exe cache get
+          git diff --exit-code -- lean-toolchain lakefile.toml lake-manifest.json
+      - name: Build and freshly elaborate complete proof with warnings as errors
+        working-directory: research/erdos549-small
+        run: |
+          set -euo pipefail
           lake build 2>&1 | tee build.log
-          lake env lean Small.lean 2>&1 | tee axioms.log
-          python3 - <<'PY'
-          import re
-          from pathlib import Path
-          text=Path('axioms.log').read_text()
-          reports=dict(re.findall(r"'([^']+)' depends on axioms: \[([^\]]*)\]",text))
-          for n in re.findall(r"'([^']+)' does not depend on any axioms",text): reports[n]=''
-          roots=['tree_isTree','blue_union_bound','blue_degree','red_degree','no_monochromatic_copy','ramsey_ne_35','not_erdos_549','explicit_counterexample']
-          expected={'Erdos549Small.'+n for n in roots}
-          if set(reports)!=expected: raise SystemExit(f'Missing or extra roots: {reports}')
-          for name,ax in reports.items():
-              used={a.strip() for a in ax.split(',') if a.strip()}
-              if not used <= {'propext','Classical.choice','Quot.sound'}:
-                  raise SystemExit(f'Unexpected axioms: {name}: {used}')
-          print('COMPLETE ORIGINAL-FORMULA NEGATION CHECKED. Not a prize decision or priority certification.')
-          PY
+          lake env lean -DwarningAsError=true Small.lean 2>&1 | tee axioms.log
+          python3 audit.py axioms.log
+          git diff --exit-code -- lean-toolchain lakefile.toml lake-manifest.json
+      - name: Independent arithmetic witness and byte checks
+        working-directory: research/erdos549-small
+        run: |
+          set -euo pipefail
+          python3 verify.py --output results.json
+          python3 bootstrap.py
+          echo '129f0f29aa613d6c12964679e8e06c9c0e76cd51134ddb10432d34c93874e891  Small.lean' | sha256sum -c -
+          echo 'ab172e753bb753cd86ad81cbffaa55c0e1f78c65908e70ffd5ee6ede60cfd159  RamseyDefs.lean' | sha256sum -c -
           echo "Verified source: $GITHUB_SHA"
-          sha256sum Small.lean RamseyDefs.lean lean-toolchain lakefile.toml lake-manifest.json
+          sha256sum Small.lean RamseyDefs.lean lean-toolchain lakefile.toml lake-manifest.json bootstrap.py audit.py verify.py results.json
+          echo 'Complete original-formula negation checked. Not an award decision, independent human review, or priority certificate.'
