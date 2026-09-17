@@ -1,0 +1,13 @@
+The newly authored contribution in Erdos339/UpperDensity.lean, Erdos339.lean,
+Audit.lean, bootstrap.py, project configuration, NOTICE and proof.tex is
+provided under the Apache License, Version 2.0 (see LICENSE-APACHE-2.0).
+To the extent copyright applies, the submitting contributor grants this
+license for these new contributions. AI assistance is disclosed in NOTICE.
+
+Util/Density.lean retains its original Formal Conjectures Authors copyright
+and Apache-2.0 notice. Its only local changes narrow the import list.
+
+This license does NOT cover Erdos339/Finite.lean, which is generated locally
+from a pinned public upstream source with no stated redistribution license,
+is ignored by Git, and is not distributed in this repository. No rights in
+that upstream source are asserted. See NOTICE and bootstrap.py for provenance.

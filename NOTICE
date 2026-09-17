@@ -1,0 +1,32 @@
+Erdos339: positive upper density of restricted sumsets
+
+Target: https://www.erdosproblems.com/339
+Justin Sun Prize catalog: JSP-000281, SECOND question.
+For every set A of natural numbers and every r, positive upper density
+of the unrestricted r-fold sumset implies positive upper density of sums
+of exactly r pairwise distinct elements of A.
+
+Mathematics: Norbert Hegyvári, François Hennecart, Alain Plagne,
+J. Reine Angew. Math. 560 (2003), 199-220.
+Upstream finite combinatorial formalization: plby/lean-proofs,
+formal authors Codex and GPT-5.6 Sol, commit
+8822f7ddef30fadbd92e1c6ab4ed897af356af5e.
+https://github.com/plby/lean-proofs/blob/8822f7ddef30fadbd92e1c6ab4ed897af356af5e/src/latest/ErdosProblems/Erdos339.lean
+New upper-density endpoint developed with an AI coding assistant.
+No mathematical discovery, priority, independent review, or prize claim.
+
+Upstream Erdos339.lean has no stated redistribution license.
+Its extracted finite machinery is obtained locally by bootstrap.py and
+excluded from Git. This project does not license or redistribute that file.
+Util/Density.lean retains its explicit Apache-2.0 notice; the license copy
+is in LICENSE-APACHE-2.0 and applies to that utility, not the unlicensed dependency.
+
+Reproduce with Python 3.10+ and Lean 4.32.1 / Lake on PATH:
+  python bootstrap.py
+  lake exe cache get
+  lake build
+  lake env lean Audit.lean
+Dependencies are pinned by lake-manifest.json.
+
+The first (basis/lower-density) question is already proved upstream.
+This project complements it; it does not claim credit for that proof.
