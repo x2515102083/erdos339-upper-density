@@ -1,0 +1,30 @@
+name: Read LCM source and verify research
+on:
+  push:
+    branches: [research/prize-lcm-20260918]
+permissions:
+  contents: read
+jobs:
+  source:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Fetch and read cited public note
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check pymupdf==1.26.4
+          python3 - <<'PY'
+          import hashlib, pathlib, urllib.request, fitz
+          u='https://raw.githubusercontent.com/Woett/Mathematical-shorts/main/Sequences%20with%20bounded%20lcm%20for%20consecutive%20elements.pdf'
+          b=urllib.request.urlopen(u).read()
+          h=hashlib.sha1(b'blob '+str(len(b)).encode()+b'\0'+b).hexdigest()
+          assert h=='a8d6b897c64936f054bab74712185b75f4b4db46',h
+          d=fitz.open(stream=b,filetype='pdf')
+          print('CITED_NOTE_VERIFIED',h, 'PAGES',len(d))
+          for i,p in enumerate(d):
+            print('PAGE',i+1)
+            print(p.get_text())
+          PY
