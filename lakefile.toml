@@ -1,6 +1,6 @@
 name = "Erdos339"
 version = "0.1.0"
-defaultTargets = ["Erdos339"]
+defaultTargets = ["Packing"]
 
 [[require]]
 name = "mathlib"
@@ -8,7 +8,4 @@ scope = "leanprover-community"
 rev = "v4.32.1"
 
 [[lean_lib]]
-name = "Erdos339"
-
-[[lean_lib]]
-name = "Util"
+name = "Packing"

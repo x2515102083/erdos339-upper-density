@@ -1,0 +1,44 @@
+name: Check Erdos 316 research components
+on:
+  push:
+    branches: [research-erdos316-generalized]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Install pinned toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --proto '=https' --tlsv1.2 -sSfL https://elan.lean-lang.org/elan-init.sh -o /tmp/elan-init.sh
+          sh /tmp/elan-init.sh -y --default-toolchain none
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+      - name: Check source and actual axiom reports
+        shell: bash
+        run: |
+          set -euo pipefail
+          lean --version
+          lake exe cache get
+          lake build Packing 2>&1 | tee build.log
+          lake env lean Packing.lean 2>&1 | tee audit.log
+          git diff --exit-code -- lean-toolchain lakefile.toml lake-manifest.json
+          python3 - <<'PY'
+          import re
+          from pathlib import Path
+          expected = {'integer_obstruction', 'integer_obstruction_exact', 'rational_grid_obstruction', 'unit_fraction_certificate', 'three_bin_example'}
+          seen = set()
+          for name, axioms in re.findall(r"'Erdos316Research\.([^']+)' depends on axioms: \[([^\]]*)\]", Path('audit.log').read_text()):
+              if name in expected:
+                  used = {x.strip() for x in axioms.split(',') if x.strip()}
+                  assert used <= {'propext', 'Classical.choice', 'Quot.sound'}, (name, used)
+                  seen.add(name)
+          assert seen == expected, (seen, expected)
+          print('Checked only the listed research components; the universal generalized construction is not yet formalized.')
+          PY
+          echo "Checked revision: $(git rev-parse HEAD)"
+          sha256sum Packing.lean lean-toolchain lakefile.toml lake-manifest.json

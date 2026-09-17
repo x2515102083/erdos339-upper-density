@@ -1,7 +1,3 @@
 .lake/
-# Generated from pinned upstream source; no redistribution license supplied.
-Erdos339/Finite.lean
-Erdos339/LowerDensity.lean
+*.log
 __pycache__/
-build.log
-axiom-audit.log
