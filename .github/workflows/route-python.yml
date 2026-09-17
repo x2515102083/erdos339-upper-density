@@ -1,0 +1,32 @@
+name: Erdos 488 auxiliary witness reproduction
+on:
+  push:
+    branches: [research/erdos488-route-audit-20260918]
+    paths: ['research/erdos488/route-audit/verify.py', '.github/workflows/route-python.yml']
+permissions:
+  contents: read
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Exact divisor, sieve and inclusion-exclusion rechecks
+        working-directory: research/erdos488/route-audit
+        run: |
+          set -euo pipefail
+          python3 --version
+          python3 verify.py --output results.json
+          python3 - <<'PY'
+          import hashlib
+          from pathlib import Path
+          expected='8865d9c93af3a52020f94aab0d0de636de15e973f6ae70673cbc76d29e337924'
+          digest=hashlib.sha256(Path('results.json').read_bytes()).hexdigest()
+          if digest != expected:
+              raise SystemExit(f'Reproduction mismatch: {digest}')
+          print('Expected exact witness lists and counts reproduced; auxiliary conjectures only.')
+          PY
+          echo "Checked source commit: $GITHUB_SHA"
+          sha256sum verify.py results.json
