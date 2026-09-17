@@ -1,37 +1,64 @@
-name: Next problem screening
+name: Verify next problem proofs
 on:
   push:
     branches: [next-problems-20260917]
 permissions:
   contents: read
+concurrency:
+  group: next-problems-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
-  screen:
+  verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 25
     steps:
-      - name: Inspect public problem statements without changing any records
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Install the pinned Lean toolchain
         shell: bash
         run: |
           set -euo pipefail
-          git clone --depth 1 https://github.com/google-deepmind/formal-conjectures.git /tmp/formal-conjectures
-          git clone --depth 1 https://github.com/TheJustinSunPrize/awards.git /tmp/awards
-          echo "Formal Conjectures revision: $(git -C /tmp/formal-conjectures rev-parse HEAD)"
-          echo "Awards revision: $(git -C /tmp/awards rev-parse HEAD)"
+          curl --proto '=https' --tlsv1.2 -sSfL https://elan.lean-lang.org/elan-init.sh -o /tmp/elan-init.sh
+          sh /tmp/elan-init.sh -y --default-toolchain none
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+      - name: Restore pinned Mathlib dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          lean --version
+          lake exe cache get
+          git diff --exit-code -- lean-toolchain lakefile.toml lake-manifest.json
+      - name: Compile all new proof files
+        shell: bash
+        run: |
+          set -euo pipefail
+          for file in NextProblems/*.lean; do
+            echo "=== Checking $file ==="
+            lake env lean "$file" 2>&1 | tee "$(basename "$file").log"
+          done
+      - name: Check reported target axioms
+        shell: bash
+        run: |
+          set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
           import re
-          records = []
-          for p in Path('/tmp/formal-conjectures/FormalConjectures/ErdosProblems').glob('*.lean'):
-              s = p.read_text()
-              if 'category research solved' in s and 'category research open' not in s and 'formal_proof' not in s:
-                  start = s.find('namespace ')
-                  t = s[start:] if start >= 0 else s
-                  records.append((len(t), p.stem, t))
-          for size, number, text in sorted(records)[:45]:
-              print('\n=== ERDOS', number, 'STATEMENT LENGTH', size, '===')
-              print(text)
-          print('\n=== SOLVED CATALOG ENTRIES WITHOUT LEAN ===')
-          for line in Path('/tmp/awards/problems/README.md').read_text().splitlines():
-              if '| Solved | No |' in line:
-                  print(line)
+          text = '\n'.join(p.read_text() for p in Path('.').glob('*.lean.log'))
+          allowed = {'propext', 'Classical.choice', 'Quot.sound'}
+          reports = dict(re.findall(r"'([^']+)' depends on axioms: \[([^\]]*)\]", text, re.S))
+          for target in re.findall(r"'([^']+)' does not depend on any axioms", text):
+              reports[target] = ''
+          required = {'NextProblems.PowerfulPairs.seed_good', 'NextProblems.PowerfulPairs.arbitrarily_large', 'NextProblems.PowerfulPairs.jsp_000301'}
+          missing = required - reports.keys()
+          if missing:
+              raise SystemExit(f'Missing reports: {missing}')
+          for target, report in reports.items():
+              axioms = {a.strip() for a in report.split(',') if a.strip()}
+              if axioms - allowed:
+                  raise SystemExit(f'Unapproved axioms for {target}: {axioms - allowed}')
+              print(target, sorted(axioms))
+          if 'sorryAx' in text:
+              raise SystemExit('Missing-proof axiom detected')
+          print('Verified revision and files:')
           PY
+          git rev-parse HEAD
+          sha256sum NextProblems/*.lean lean-toolchain lake-manifest.json
