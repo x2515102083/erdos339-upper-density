@@ -1,4 +1,4 @@
-name: Erdős 958 uniform-arc research
+name: Erdős 958 complete uniform-arc verification
 on:
   push:
     branches: [research/erdos958-large-20260918]
@@ -23,27 +23,17 @@ jobs:
           mkdir /tmp/lean
           tar --zstd -xf /tmp/lean.tar.zst -C /tmp/lean --strip-components=1
           echo /tmp/lean/bin >> "$GITHUB_PATH"
-      - name: Fetch locked dependencies
-        working-directory: research/erdos549-small
+      - name: Fetch locked standalone dependencies
+        working-directory: research/erdos958-large
         run: |
           set -euo pipefail
-          lean --version
           python3 bootstrap.py > /tmp/bootstrap.log 2>&1 || { cat /tmp/bootstrap.log; exit 1; }
           grep PIN_VERIFIED /tmp/bootstrap.log
           lake exe cache get > /tmp/cache.log 2>&1 || { cat /tmp/cache.log; exit 1; }
-          tail -n 3 /tmp/cache.log
-          git diff --exit-code -- lean-toolchain lakefile.toml lake-manifest.json
-      - name: Check geometry and counting independently
-        working-directory: research/erdos549-small
+          tr '\r' '\n' < /tmp/cache.log | tail -n 4
+      - name: Compile all sources strictly and audit endpoint axioms
+        working-directory: research/erdos958-large
         run: |
-          set -uo pipefail
-          cp ../erdos958-large/*.lean .
-          export LEAN_PATH=".:$(lake env printenv LEAN_PATH)"
-          status=0
-          lake env lean -o Geometry.olean Geometry.lean 2>&1 | tee geometry.log || status=1
-          lake env lean -o Counting.olean Counting.lean 2>&1 | tee counting.log || status=1
-          if [ "$status" = 0 ] && [ -f Complete.lean ]; then
-            lake env lean -DwarningAsError=true Complete.lean 2>&1 | tee complete.log || status=1
-          fi
-          echo 'Only the files above were checked. This is not an award or priority decision.'
-          exit "$status"
+          set -euo pipefail
+          python3 verify.py
+          git diff --exit-code -- Geometry.lean Counting.lean Complete.lean lean-toolchain lakefile.toml lake-manifest.json bootstrap.py verify.py

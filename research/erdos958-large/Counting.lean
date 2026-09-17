@@ -64,7 +64,7 @@ lemma card_points : C.points.card = m + 1 := by
         intro i hi j hj he
         exact C.inj (mem_range.mp hi) (mem_range.mp hj) he)
       _ = m := card_range m
-  simpa [points, card_insert_of_notMem hn, hc]
+  simp [points, card_insert_of_notMem hn, hc]
 
 noncomputable def spokes : Finset (X × X) := by
   classical

@@ -67,7 +67,6 @@ lemma step_scale (m : ℕ) : ((m : ℝ) + 1) * step m = Real.pi / 6 := by
   unfold step
   have hm : (m : ℝ) + 1 ≠ 0 := ne_of_gt (by positivity)
   field_simp [hm]
-  <;> ring
 
 lemma step_mul_lt (m : ℕ) : (m : ℝ) * step m < Real.pi / 3 := by
   have hs := step_scale m
@@ -126,7 +125,8 @@ lemma zero_angle_mem {m : ℕ} (hm : 2 ≤ m) : unit 0 ∈ (planarConfig m).poin
 lemma positive_angle_mem {m : ℕ} (hm : 3 ≤ m) : unit (step m) ∈ (planarConfig m).points := by
   have h := (planarConfig m).arc_mem (i := 2) (by omega)
   change arc (step m) 2 ∈ (planarConfig m).points at h
-  simpa [arc] using h
+  norm_num [arc] at h
+  exact h
 
 lemma negative_angle_mem {m : ℕ} (hm : 1 ≤ m) : unit (-step m) ∈ (planarConfig m).points := by
   have h := (planarConfig m).arc_mem (i := 0) (by omega)
@@ -203,3 +203,6 @@ end Erdos958
 #print axioms Erdos958Large.counterexample_every_n
 #print axioms Erdos958Large.not_eventual_classification
 #print axioms Erdos958.erdos_958
+
+#check Erdos958Large.counterexample_every_n
+#check Erdos958.erdos_958
