@@ -48,7 +48,9 @@ lemma nonsquare_mul_sq {a x : ℕ} (hx : 0 < x)
   nlinarith [hq]
 
 lemma powerful_12167 : Powerful 12167 := by
-  convert powerful_prime_cube (by norm_num : Nat.Prime 23) using 1 <;> norm_num
+  have h := powerful_prime_cube (by norm_num : Nat.Prime 23)
+  norm_num at h
+  exact h
 
 lemma powerful_12168 : Powerful 12168 := by
   have h := powerful_mul_sq (powerful_prime_cube (by norm_num : Nat.Prime 2))
@@ -73,7 +75,7 @@ lemma pair_spec (k : ℕ) :
   induction k with
   | zero => norm_num [pair]
   | succ k ih =>
-      simp only [pair, Prod.fst, Prod.snd]
+      simp only [pair]
       refine ⟨by omega, by omega, ?_⟩
       nlinarith only [ih.2.2]
 
@@ -95,7 +97,7 @@ lemma first_strictMono : StrictMono first := by
   have hs := (pair_spec k).1
   have ht := (pair_spec k).2.1
   have hstep : (pair k).1 < (pair (k + 1)).1 := by
-    simp only [pair, Prod.fst]
+    simp only [pair]
     omega
   have hp := Nat.pow_lt_pow_left hstep (by decide : (2 : ℕ) ≠ 0)
   exact Nat.mul_lt_mul_of_pos_left hp (by norm_num)
@@ -103,8 +105,7 @@ lemma first_strictMono : StrictMono first := by
 /-- Arbitrarily large consecutive powerful nonsquares, with an explicit construction. -/
 theorem arbitrarily_large (N : ℕ) : ∃ n > N, Good n := by
   refine ⟨first (N + 1), ?_, first_good (N + 1)⟩
-  have h := first_strictMono.id_le (N + 1)
-  omega
+  exact lt_of_lt_of_le (Nat.lt_succ_self N) (first_strictMono.id_le (N + 1))
 
 /-- The exact universal assertion in JSP-000301 is false. -/
 theorem jsp_000301 :
