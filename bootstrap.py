@@ -1,7 +1,8 @@
-"""Fetch and extract the pinned, attributed finite proof dependency locally.
+"""Prepare both proved clauses of Erdos 339 from an immutable dependency.
 
-The upstream theorem has no stated redistribution license. This script does
-not grant one; the generated dependency is excluded from this repository.
+The upstream source has no stated redistribution license. Generated files
+are excluded from this repository; this script does not grant such a license.
+Mathematical and formal authors are retained in each generated file.
 """
 from hashlib import sha256
 from pathlib import Path
@@ -21,7 +22,16 @@ def fetch(path: str, digest: str) -> str:
 
 
 def between(source: str, start: str, stop: str) -> str:
-    return source[source.index(start):source.index(stop)]
+    first = source.index(start)
+    last = source.index(stop, first + len(start))
+    return source[first:last]
+
+
+def write_generated(name: str, content: str) -> None:
+    target = ROOT / "Erdos339" / name
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(content, encoding="utf-8", newline="\n")
+    print(f"Prepared {name} from {REVISION}; SHA-256 {sha256(content.encode()).hexdigest()}")
 
 
 def main() -> None:
@@ -30,12 +40,14 @@ def main() -> None:
         "2ff897f1d26d160f01ad2a50c94050aab55f80ef00d4a2545a15f3eabfcfd87d",
     )
     header = source[:source.index("import ErdosProblems.Erdos868")]
+    provenance = (
+        "/- Generated locally from plby/lean-proofs, commit " + REVISION
+        + ".\nThe source header records its original environment; this project uses"
+        + " the committed lean-toolchain and lake-manifest.json.\n"
+        + "Original authors and mathematical provenance are retained above. -/\n\n"
+    )
     finite = (
-        header
-        + "/- Extracted finite combinatorial machinery from plby/lean-proofs, commit "
-        + REVISION
-        + ".\nOriginal authors and mathematical provenance retained above.\n"
-        + "The unrelated Erdos868 import and lower-density endpoint are omitted. -/\n\n"
+        header + provenance
         + "import Mathlib.Algebra.Group.Pointwise.Set.BigOperators\n"
         + "import Mathlib.Algebra.Order.BigOperators.Group.Finset\n"
         + "import Mathlib.Tactic.Ring\nimport Mathlib.Tactic.SplitIfs\n"
@@ -45,15 +57,22 @@ def main() -> None:
         + between(source, "lemma partialDensity_nat_eq_prefix_card", "/-!\n## Erdős Problem 339")
         + "\nend Erdos339\n"
     )
-    # Lean/mathlib 4.32.1: avoid simplifying a subtype membership to True.
+    # The sole compatibility change to the reused finite proof in Lean 4.32.1.
     old = "    simpa [B] using b.property"
     if finite.count(old) != 1:
         raise ValueError("Expected exactly one source-selection compatibility site")
     finite = finite.replace(old, "    obtain ⟨n, _, hn⟩ := Finset.mem_image.mp b.property\n    exact ⟨n, hn⟩")
-    target = ROOT / "Erdos339" / "Finite.lean"
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(finite, encoding="utf-8", newline="\n")
-    print(f"Prepared {target.name} from {REVISION}; SHA-256 {sha256(finite.encode()).hexdigest()}")
+    lower = (
+        header + provenance
+        + "import Erdos339.Finite\nimport Erdos339.Basis\n\n"
+        + "open Filter Function\nopen scoped Pointwise BigOperators\n\nnamespace Erdos339\n\n"
+        + between(source, "lemma infinite_of_isAsymptoticAddBasisOfOrder", "lemma eventually_large_prefix_of_infinite")
+        + between(source, "lemma basis_prefix_card_lower_bound", "lemma partialDensity_nat_eq_prefix_card")
+        + between(source, "/-!\n## Erdős Problem 339", "\nend Erdos339")
+        + "\nend Erdos339\n"
+    )
+    write_generated("Finite.lean", finite)
+    write_generated("LowerDensity.lean", lower)
 
 
 if __name__ == "__main__":
