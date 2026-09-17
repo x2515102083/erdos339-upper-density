@@ -25,9 +25,14 @@ jobs:
         run: |
           set -euo pipefail
           lean --version
+          mkdir -p .lake/packages/mathlib
+          git -C .lake/packages/mathlib init
+          git -C .lake/packages/mathlib remote add origin https://github.com/leanprover-community/mathlib4.git
+          git -C .lake/packages/mathlib fetch --depth=1 origin 520045ab14e26149ee970e2e617ca04b09bde5d6
+          git -C .lake/packages/mathlib checkout --detach 520045ab14e26149ee970e2e617ca04b09bde5d6
           lake update
           test "$(git -C .lake/packages/mathlib rev-parse HEAD)" = 520045ab14e26149ee970e2e617ca04b09bde5d6
-          lake exe cache get Mathlib/Data/Nat/Interval.lean Mathlib/Data/Finset/Card.lean Mathlib/Tactic.lean
+          lake exe cache get
           lake build 2>&1 | tee build.log
           lake env lean Rounded.lean 2>&1 | tee axioms.log
           python3 - <<'PY'
