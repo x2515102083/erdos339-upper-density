@@ -1,0 +1,51 @@
+name: Erdos 488 auxiliary route audit
+on:
+  push:
+    branches: [research/erdos488-route-audit-20260918]
+    paths: ['research/erdos488/lean/RouteAudit.lean', '.github/workflows/route-audit.yml']
+permissions:
+  contents: read
+jobs:
+  lean:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Install pinned Lean release
+        run: |
+          set -euo pipefail
+          curl --proto '=https' --tlsv1.2 -fsSL https://github.com/leanprover/lean4/releases/download/v4.32.1/lean-4.32.1-linux.tar.zst -o /tmp/lean.tar.zst
+          mkdir /tmp/lean
+          tar --zstd -xf /tmp/lean.tar.zst -C /tmp/lean --strip-components=1
+          echo /tmp/lean/bin >> "$GITHUB_PATH"
+      - name: Check auxiliary counterexamples, not the main conjecture
+        working-directory: research/erdos488/lean
+        run: |
+          set -euo pipefail
+          lean --version
+          mkdir -p .lake/packages/mathlib
+          git -C .lake/packages/mathlib init
+          git -C .lake/packages/mathlib remote add origin https://github.com/leanprover-community/mathlib4.git
+          git -C .lake/packages/mathlib fetch --depth=1 origin 520045ab14e26149ee970e2e617ca04b09bde5d6
+          git -C .lake/packages/mathlib checkout --detach 520045ab14e26149ee970e2e617ca04b09bde5d6
+          lake update
+          test "$(git -C .lake/packages/mathlib rev-parse HEAD)" = 520045ab14e26149ee970e2e617ca04b09bde5d6
+          lake exe cache get
+          lake env lean RouteAudit.lean 2>&1 | tee route-axioms.log
+          python3 - <<'PY'
+          import re
+          from pathlib import Path
+          text=Path('route-axioms.log').read_text()
+          reports=dict(re.findall(r"'([^']+)' depends on axioms: \[([^\]]*)\]",text))
+          for n in re.findall(r"'([^']+)' does not depend on any axioms",text): reports[n]=''
+          expected={'Erdos488RouteAudit.'+n for n in ['sparse_structure','sparse_values','not_sparse_order_slack','tail_structure','split_values','not_pair_tail','pair_tail_gap','tail_example_satisfies_original']}
+          if set(reports)!=expected: raise SystemExit(f'Missing or unexpected reports: {reports}')
+          for n,a in reports.items():
+              if not {s.strip() for s in a.split(',') if s.strip()} <= {'propext','Classical.choice','Quot.sound'}:
+                  raise SystemExit(f'Unexpected axioms: {n}: {a}')
+          print('AUXILIARY COUNTEREXAMPLES CHECKED. No solution of Erdos 488 or award claim.')
+          PY
+          echo "Verified source commit: $GITHUB_SHA"
+          sha256sum RouteAudit.lean lean-toolchain lakefile.toml lake-manifest.json
