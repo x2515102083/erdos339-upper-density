@@ -1,0 +1,43 @@
+name: Erdos 488 bounded-n research check
+on:
+  push:
+    branches: [research/next-prize-20260917]
+    paths:
+      - research/erdos488/**
+      - .github/workflows/erdos488.yml
+permissions:
+  contents: read
+jobs:
+  reproduce:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Fetch exact public source commit
+        env:
+          PROOF_COMMIT: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          git init source
+          git -C source remote add origin https://github.com/x2515102083/erdos339-upper-density.git
+          git -C source fetch --depth=1 origin "$PROOF_COMMIT"
+          git -C source checkout --detach "$PROOF_COMMIT"
+          test "$(git -C source rev-parse HEAD)" = "$PROOF_COMMIT"
+          echo "Checked source: $PROOF_COMMIT"
+      - name: Exact arithmetic reproduction and independent self-tests
+        run: |
+          set -euo pipefail
+          cd source
+          python3 --version
+          python3 research/erdos488/check.py --n-max 20 --self-test --output result.json
+          python3 - <<'PY'
+          import json
+          r=json.load(open('result.json'))
+          assert r['kind']=='bounded_n_all_m_verified_by_exact_python'
+          assert r['nonempty_primitive_generator_sets']==10239
+          assert r['finite_A_n_m_inequality_checks']==999461
+          assert r['independent_direct_vs_inclusion_exclusion_checks']==706180
+          assert r['maximum_required_tail_start']==407
+          assert r['minimum_delta']=='1/190'
+          assert r['certificate_stream_sha256']=='7bb8a41789e7661da6a358547f6fad5db2182ceb0c13553a69753b58d12a7810'
+          print('REPRODUCTION_MATCHED. Bounded n only; no complete solution or Lean proof is claimed.')
+          PY
