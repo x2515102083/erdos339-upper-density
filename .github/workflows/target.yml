@@ -1,0 +1,32 @@
+name: Target statement check
+on:
+  push:
+    branches: [research/next-prize-20260917]
+    paths: [.github/workflows/target.yml]
+permissions:
+  contents: read
+jobs:
+  target:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Read selected original statements
+        shell: python
+        run: |
+          import urllib.request, re, concurrent.futures
+          from html.parser import HTMLParser
+          class T(HTMLParser):
+              def __init__(self): super().__init__(); self.parts=[]; self.skip=0
+              def handle_starttag(self,t,a):
+                  if t in ('script','style'): self.skip+=1
+              def handle_endtag(self,t):
+                  if t in ('script','style'): self.skip=max(0,self.skip-1)
+              def handle_data(self,d):
+                  if not self.skip and d.strip(): self.parts.append(d.strip())
+          def read(n):
+              try:
+                  with urllib.request.urlopen(f'https://www.erdosproblems.com/{n}',timeout=30) as r: s=r.read().decode()
+                  p=T(); p.feed(s); return n,'\n'.join(p.parts)
+              except Exception as e:return n,str(e)
+          for n,s in sorted(concurrent.futures.ThreadPoolExecutor(5).map(read,[19,167,475,477,480,483,488,556,580,743,993])):
+              print('\nORIGINAL_PROBLEM',n,'\n',s[:18000])
