@@ -48,17 +48,70 @@ jobs:
           lean --version > environment.txt
           sha256sum lean-toolchain lakefile.toml lake-manifest.json >> environment.txt
           echo 'Environment preparation only; no Erdos theorem has been proved by this run.' >> environment.txt
-      - name: Archive public proof-development dependencies
+      - name: Archive and split public proof-development dependencies
         shell: bash
         run: |
           set -euo pipefail
           tar --zstd -cf /tmp/erdos772-public-environment.tar.zst -C /tmp proof-environment
-          sha256sum /tmp/erdos772-public-environment.tar.zst
-          du -h /tmp/erdos772-public-environment.tar.zst
-      - name: Publish temporary reproducible development environment
-        uses: actions/upload-artifact@v4
+          split -b 400M -d -a 2 /tmp/erdos772-public-environment.tar.zst /tmp/env-
+          sha256sum /tmp/erdos772-public-environment.tar.zst /tmp/env-* | tee /tmp/environment-sha256.txt
+          test "$(find /tmp -maxdepth 1 -name 'env-*' | wc -l)" -le 9
+      - uses: actions/upload-artifact@v4
         with:
-          name: erdos772-public-environment
-          path: /tmp/erdos772-public-environment.tar.zst
+          name: erdos772-environment-manifest
+          path: /tmp/environment-sha256.txt
+          retention-days: 2
+      - uses: actions/upload-artifact@v4
+        with:
+          name: erdos772-environment-00
+          path: /tmp/env-00
+          compression-level: 0
+          retention-days: 2
+      - uses: actions/upload-artifact@v4
+        with:
+          name: erdos772-environment-01
+          path: /tmp/env-01
+          compression-level: 0
+          retention-days: 2
+      - uses: actions/upload-artifact@v4
+        with:
+          name: erdos772-environment-02
+          path: /tmp/env-02
+          compression-level: 0
+          retention-days: 2
+      - uses: actions/upload-artifact@v4
+        with:
+          name: erdos772-environment-03
+          path: /tmp/env-03
+          compression-level: 0
+          retention-days: 2
+      - uses: actions/upload-artifact@v4
+        with:
+          name: erdos772-environment-04
+          path: /tmp/env-04
+          compression-level: 0
+          retention-days: 2
+      - uses: actions/upload-artifact@v4
+        with:
+          name: erdos772-environment-05
+          path: /tmp/env-05
+          compression-level: 0
+          retention-days: 2
+      - uses: actions/upload-artifact@v4
+        with:
+          name: erdos772-environment-06
+          path: /tmp/env-06
+          compression-level: 0
+          retention-days: 2
+      - uses: actions/upload-artifact@v4
+        with:
+          name: erdos772-environment-07
+          path: /tmp/env-07
+          compression-level: 0
+          retention-days: 2
+      - uses: actions/upload-artifact@v4
+        with:
+          name: erdos772-environment-08
+          path: /tmp/env-08
           compression-level: 0
           retention-days: 2
