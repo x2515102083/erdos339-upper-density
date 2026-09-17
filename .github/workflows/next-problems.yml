@@ -25,16 +25,21 @@ jobs:
         run: |
           set -euo pipefail
           lean --version
-          lake exe cache get
+          lake exe cache get > cache.log 2>&1 || { tail -n 100 cache.log; exit 1; }
+          tail -n 3 cache.log
           git diff --exit-code -- lean-toolchain lakefile.toml lake-manifest.json
       - name: Compile all new proof files
         shell: bash
         run: |
           set -euo pipefail
+          failed=0
           for file in NextProblems/*.lean; do
             echo "=== Checking $file ==="
-            lake env lean "$file" 2>&1 | tee "$(basename "$file").log"
+            if ! lake env lean "$file" 2>&1 | tee "$(basename "$file").log"; then
+              failed=1
+            fi
           done
+          exit "$failed"
       - name: Check reported target axioms
         shell: bash
         run: |
@@ -47,7 +52,14 @@ jobs:
           reports = dict(re.findall(r"'([^']+)' depends on axioms: \[([^\]]*)\]", text, re.S))
           for target in re.findall(r"'([^']+)' does not depend on any axioms", text):
               reports[target] = ''
-          required = {'NextProblems.PowerfulPairs.seed_good', 'NextProblems.PowerfulPairs.arbitrarily_large', 'NextProblems.PowerfulPairs.jsp_000301'}
+          required = {
+              'NextProblems.PowerfulPairs.seed_good',
+              'NextProblems.PowerfulPairs.arbitrarily_large',
+              'NextProblems.PowerfulPairs.jsp_000301',
+              'NextProblems.Erdos1209.simultaneous_unique_shift',
+              'NextProblems.Erdos1209.erdos_1209_i',
+              'NextProblems.Erdos1209.erdos_1209_ii',
+          }
           missing = required - reports.keys()
           if missing:
               raise SystemExit(f'Missing reports: {missing}')
