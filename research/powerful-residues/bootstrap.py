@@ -1,5 +1,5 @@
-"""Prepare the exact dependency lock inherited from the pinned parent project.
-No problem-specific proof source is fetched or generated.
+"""Restore the committed dependency revisions; fetch no problem-specific proof.
+Run from a checkout of the proof project. This script changes only .lake.
 """
 import json
 import subprocess
@@ -7,12 +7,9 @@ from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor
 ROOT = Path(__file__).resolve().parent
 LOCK = ROOT / 'lake-manifest.json'
-if not LOCK.exists():
-    data = json.loads((ROOT.parent.parent / 'lake-manifest.json').read_text())
-    data['name'] = 'PowerfulResidues'
-    LOCK.write_text(json.dumps(data, indent=2) + '\n')
-lock = json.loads(LOCK.read_text())
-assert next(p['rev'] for p in lock['packages'] if p['name'] == 'mathlib') == '520045ab14e26149ee970e2e617ca04b09bde5d6'
+lock = json.loads(LOCK.read_text(encoding='utf-8'))
+if next(p['rev'] for p in lock['packages'] if p['name'] == 'mathlib') != '520045ab14e26149ee970e2e617ca04b09bde5d6':
+    raise RuntimeError('Unexpected Mathlib lock revision')
 def run(args, cwd):
     subprocess.run(args, cwd=cwd, check=True)
 def prepare(p):
