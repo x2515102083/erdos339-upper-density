@@ -1,0 +1,45 @@
+name: Erdos 488 reformulation audit
+on:
+  push:
+    branches: [research/erdos488-rounded-20260918]
+    paths: ['research/erdos488/lean/**', '.github/workflows/rounded.yml']
+permissions:
+  contents: read
+jobs:
+  lean:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Install pinned Lean release
+        run: |
+          set -euo pipefail
+          curl --proto '=https' --tlsv1.2 -fsSL https://github.com/leanprover/lean4/releases/download/v4.32.1/lean-4.32.1-linux.tar.zst -o /tmp/lean.tar.zst
+          mkdir /tmp/lean
+          tar --zstd -xf /tmp/lean.tar.zst -C /tmp/lean --strip-components=1
+          echo /tmp/lean/bin >> "$GITHUB_PATH"
+      - name: Build reformulation only
+        working-directory: research/erdos488/lean
+        run: |
+          set -euo pipefail
+          lean --version
+          lake update
+          test "$(git -C .lake/packages/mathlib rev-parse HEAD)" = 520045ab14e26149ee970e2e617ca04b09bde5d6
+          lake exe cache get Mathlib/Data/Nat/Interval.lean Mathlib/Data/Finset/Card.lean Mathlib/Tactic.lean
+          lake build 2>&1 | tee build.log
+          lake env lean Rounded.lean 2>&1 | tee axioms.log
+          python3 - <<'PY'
+          import re
+          from pathlib import Path
+          text=Path('axioms.log').read_text()
+          reports=re.findall(r"'([^']+)' depends on axioms: \[([^\]]*)\]",text)
+          expected={'Erdos488Rounded.'+n for n in ['count_dilate','predecessor_div','lift_rounded_failure','strict_iff_rounded']}
+          assert {n for n,a in reports}==expected, reports
+          for n,a in reports:
+              assert {s.strip() for s in a.split(',') if s.strip()} <= {'propext','Classical.choice','Quot.sound'}, (n,a)
+          print('Four reformulation declarations passed the standard-axiom audit. This does not prove Erdos 488.')
+          PY
+          echo "Verified source commit: $GITHUB_SHA"
+          sha256sum Rounded.lean lean-toolchain lakefile.toml lake-manifest.json
