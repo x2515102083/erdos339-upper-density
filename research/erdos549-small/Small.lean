@@ -27,8 +27,8 @@ instance : DecidableRel TreeAdj := by
 
 def tree : SimpleGraph TV where
   Adj := TreeAdj
-  symm := by intro x y; cases x <;> cases y <;> simp [TreeAdj]
-  loopless := by intro x; cases x <;> simp [TreeAdj]
+  symm := ⟨by intro x y; cases x <;> cases y <;> simp [TreeAdj]⟩
+  loopless := ⟨by intro x; cases x <;> simp [TreeAdj]⟩
 
 instance : DecidableRel tree.Adj := inferInstanceAs (DecidableRel TreeAdj)
 
@@ -63,7 +63,8 @@ theorem tree_connected : tree.Connected := by
 theorem tree_isTree : tree.IsTree := by
   apply (SimpleGraph.isTree_iff_connected_and_card).2
   refine ⟨tree_connected, ?_⟩
-  rw [Nat.card_eq_fintype_card, ← SimpleGraph.edgeFinset_card, tree_edge_count]
+  rw [Nat.card_eq_fintype_card, ← SimpleGraph.edgeFinset_card, tree_edge_count,
+    Nat.card_eq_fintype_card]
   decide
 
 /-- Five cliques of size seven; consecutive cliques are joined except at equal labels. -/
@@ -80,12 +81,12 @@ instance : DecidableRel BlueAdj := by
 
 def blue : SimpleGraph (Fin 35) where
   Adj := BlueAdj
-  symm := by
+  symm := ⟨by
     intro u v h
     rcases h with ⟨hne, h | ⟨hcyc, hlab⟩⟩
     · exact ⟨hne.symm, Or.inl h.symm⟩
-    · exact ⟨hne.symm, Or.inr ⟨hcyc.elim Or.inr Or.inl, hlab.symm⟩⟩
-  loopless := by intro u h; exact h.1 rfl
+    · exact ⟨hne.symm, Or.inr ⟨hcyc.elim Or.inr Or.inl, hlab.symm⟩⟩⟩
+  loopless := ⟨by intro u h; exact h.1 rfl⟩
 
 instance : DecidableRel blue.Adj := inferInstanceAs (DecidableRel BlueAdj)
 
@@ -107,8 +108,11 @@ theorem not_contained_blue : ¬ tree.IsContained blue := by
     rcases every_vertex_neighbor x with hx | hx
     · exact Finset.mem_union_left _ (by simpa using f.toHom.map_adj hx)
     · exact Finset.mem_union_right _ (by simpa using f.toHom.map_adj hx)
+  have hfi : Function.Injective (f : TV → Fin 35) := by
+    intro x y h
+    exact f.injective h
   have hc : (Finset.univ.image f).card = 27 := by
-    rw [Finset.card_image_of_injective _ f.injective]
+    rw [Finset.card_image_of_injective _ hfi]
     decide
   have hle := Finset.card_le_card hs
   have hb := blue_union_bound (f leftCenter) (f rightCenter) (f.toHom.map_adj center_edge)
@@ -154,7 +158,7 @@ theorem ramsey_ne_35 : SimpleGraph.diagonalGraphRamsey tree ≠ 35 := by
 The types, tree condition, partition conditions, and Ramsey definitions match
 Formal Conjectures ErdosProblems/549.lean at the cited fixed revision. -/
 theorem not_erdos_549 : ¬
-    ∀ (k : ℕ) (hk : 2 ≤ k) (T : SimpleGraph (Fin k ⊕ Fin (2 * k))),
+    ∀ (k : ℕ) (_hk : 2 ≤ k) (T : SimpleGraph (Fin k ⊕ Fin (2 * k))),
       T.IsTree →
       (∀ x₁ x₂, ¬ T.Adj (Sum.inl x₁) (Sum.inl x₂)) →
       (∀ y₁ y₂, ¬ T.Adj (Sum.inr y₁) (Sum.inr y₂)) →
