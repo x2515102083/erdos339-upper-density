@@ -1,0 +1,58 @@
+name: Prize candidate screening
+on:
+  push:
+    branches: [research/next-prize-20260917]
+permissions:
+  contents: read
+jobs:
+  screen:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Screen public catalog against public submissions
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: python
+        run: |
+          import json, os, re, urllib.request
+          from collections import defaultdict
+          def get(url):
+              headers = {'User-Agent': 'prize-candidate-audit', 'Accept': 'application/vnd.github+json'}
+              if url.startswith('https://api.github.com/'):
+                  headers['Authorization'] = 'Bearer ' + os.environ['GH_TOKEN']
+              with urllib.request.urlopen(urllib.request.Request(url, headers=headers), timeout=60) as r:
+                  return r.read().decode('utf-8')
+          repo = 'TheJustinSunPrize/awards'
+          head = json.loads(get(f'https://api.github.com/repos/{repo}/commits/main'))['sha']
+          index = get(f'https://raw.githubusercontent.com/{repo}/{head}/problems/README.md')
+          records=[]
+          for line in index.splitlines():
+              if not line.startswith('| JSP-'): continue
+              c=[v.strip() for v in line.strip('|').split('|')]
+              if len(c)<6: continue
+              records.append({'id': c[0], 'title': c[1], 'status':c[2], 'lean':c[3], 'claim':c[5]})
+          mentions=defaultdict(list)
+          total=0
+          for page in range(1,30):
+              batch=json.loads(get(f'https://api.github.com/repos/{repo}/issues?state=all&per_page=100&page={page}'))
+              if not batch: break
+              total += len(batch)
+              for x in batch:
+                  text=x.get('title','')+'\n'+(x.get('body') or '')
+                  ids=set(re.findall(r'\bJSP[- ]?0*(\d{1,6})\b',text,re.I))
+                  for v in ids:
+                      mentions[f'JSP-{int(v):06d}'].append({'number':x['number'],'title':x['title'],'state':x['state']})
+              if len(batch)<100: break
+          print('CATALOG_COMMIT',head)
+          print('CATALOG_RECORDS',len(records),'PUBLIC_ISSUES_AND_PRS',total)
+          candidates=[r for r in records if r['status']=='Solved' and r['lean']=='No']
+          candidates.sort(key=lambda r:(len(mentions[r['id']]),r['id']))
+          print('SOLVED_WITHOUT_CATALOG_LEAN',len(candidates))
+          for r in candidates[:100]:
+              m=mentions[r['id']]
+              print(json.dumps(dict(r,mention_count=len(m),submissions=m[:8]),ensure_ascii=False))
+          print('UNMENTIONED_OPEN_PROBLEMS')
+          for r in records:
+              if r['status']=='Open' and not mentions[r['id']]:
+                  print(json.dumps(r,ensure_ascii=False))
+          print('NOTE: Absence of a JSP-ID mention is not proof of priority or absence of existing formalization. Original problem numbers and sources require separate review.')
