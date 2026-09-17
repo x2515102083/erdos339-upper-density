@@ -129,7 +129,7 @@ lemma floor_div_tendsto_one :
     have hxp : 0 < x := by linarith
     have hf := Nat.lt_floor_add_one x
     rw [le_div_iff₀ hxp]
-    have heq : (1 - 1 / x) * x = x - 1 := by field_simp; ring
+    have heq : (1 - 1 / x) * x = x - 1 := by field_simp
     rw [heq]
     linarith
   · filter_upwards [eventually_ge_atTop (1 : ℝ)] with x hx
@@ -138,7 +138,11 @@ lemma floor_div_tendsto_one :
 
 lemma factor_tendsto_one : Tendsto factor atTop (𝓝 1) := by
   have h := (Real.continuous_sqrt.tendsto 1).comp floor_div_tendsto_one
-  simpa [factor, Real.sqrt_div] using h
+  have heq : factor = fun x : ℝ => Real.sqrt ((⌊x⌋₊ : ℝ) / x) := by
+    funext x
+    exact (Real.sqrt_div (Nat.cast_nonneg (⌊x⌋₊)) x).symm
+  rw [heq]
+  simpa only [Function.comp_def, Real.sqrt_one] using h
 
 lemma realRatio_product (A : IncreasingSequence) {x : ℝ} (hx : 1 ≤ x) :
     realRatio A x = floorRatio A x * factor x := by
@@ -216,8 +220,8 @@ theorem realCount_isBigO_sqrt (A : IncreasingSequence) :
       floorRatio A x * factor x ≤ floorRatio A x * 1 :=
         mul_le_mul_of_nonneg_left (factor_le_one hx) (floorRatio_nonneg A x)
       _ ≤ 4 := by simpa using floorRatio_le_four A x
-  simp only [Real.norm_eq_abs, abs_of_nonneg (Nat.cast_nonneg (realCount A x)),
-    abs_of_nonneg (Real.sqrt_nonneg x)]
+  have hc : (0 : ℝ) ≤ realCount A x := Nat.cast_nonneg _
+  simp only [Real.norm_eq_abs, abs_of_nonneg hc, abs_of_nonneg (Real.sqrt_nonneg x)]
   exact (div_le_iff₀ (Real.sqrt_pos.2 (by linarith : 0 < x))).1 hr
 
 /-- Complete real-threshold resolution, including the sharp universal limsup and its witness.

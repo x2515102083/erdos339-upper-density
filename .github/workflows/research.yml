@@ -33,14 +33,19 @@ jobs:
           python3 bootstrap.py
           lake exe cache get
           git diff --exit-code -- lean-toolchain lakefile.toml lake-manifest.json
-      - name: Build attributed natural-threshold core
+      - name: Build all proof modules
         run: |
           set -euo pipefail
-          lake build 2>&1 | tee core.log
-      - name: Freshly check the new real-threshold proof
+          lake build 2>&1 | tee build.log
+      - name: Freshly check and audit both new proof files
         run: |
           set -euo pipefail
-          lake env lean -DwarningAsError=true Proof.lean 2>&1 | tee axioms.log
+          lake env lean -DwarningAsError=true Proof.lean 2>&1 | tee proof-axioms.log
+          lake env lean -DwarningAsError=true Cutoff.lean 2>&1 | tee cutoff-axioms.log
+          cat proof-axioms.log cutoff-axioms.log > axioms.log
+          python3 audit.py axioms.log
+          python3 bootstrap.py
           git diff --exit-code -- lean-toolchain lakefile.toml lake-manifest.json
-          sha256sum Proof.lean bootstrap.py lean-toolchain lakefile.toml lake-manifest.json
+          sha256sum Proof.lean Cutoff.lean bootstrap.py audit.py lean-toolchain lakefile.toml lake-manifest.json audit-result.json
           echo "SOURCE_COMMIT=$GITHUB_SHA"
+          echo 'Not an independent-operator review, designated isolated audit, priority certificate, or award decision.'
