@@ -1,5 +1,6 @@
 /-
-Copyright 2026 x2515102083.
+Copyright 2026 x2515102083 (new proofs).
+Statement formulations adapted from work copyright 2026 The Formal Conjectures Authors.
 Released under the Apache 2.0 license.
 AI-assisted formalization of the known negative answers to Erdos 1209(i),(ii).
 Statement reference: google-deepmind/formal-conjectures,
@@ -21,8 +22,8 @@ lemma exists_prime_bad_shift (n B : ℕ) (hn : 0 < n) :
     have hle := Nat.le_of_dvd hn h
     omega
   have hcop : n.Coprime q := (hqprime.coprime_iff_not_dvd.mpr hnot).symm
-  have hz : IsCoprime (n : ℤ) ((q ^ 2 : ℕ) : ℤ) := by
-    simpa using hcop.pow_right 2
+  have hz : IsCoprime (n : ℤ) ((q ^ 2 : ℕ) : ℤ) :=
+    (hcop.pow_right 2).isCoprime
   obtain ⟨p, hpB, hprime, hmod⟩ := Nat.forall_exists_prime_gt_and_zmodEq B
     (q := q ^ 2) (a := -(n : ℤ)) (pow_ne_zero 2 hqprime.ne_zero) hz.neg_left
   have hzero : (p : ℤ) + n ≡ 0 [ZMOD ((q ^ 2 : ℕ) : ℤ)] := by
