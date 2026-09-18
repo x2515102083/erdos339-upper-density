@@ -1,0 +1,52 @@
+name: Public proof entry-point audit
+on:
+  push:
+    branches: [research/new-prize-20260918]
+    paths: [.github/workflows/research-source-audit.yml]
+permissions:
+  contents: read
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Read immutable public source entry points
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir public-entry-points
+          gh api 'repos/plby/lean-proofs/git/trees/8822f7ddef30fadbd92e1c6ab4ed897af356af5e?recursive=1' > public-entry-points/tree.json
+          python3 - <<'PY'
+          import concurrent.futures, hashlib, json, re, time, urllib.request
+          from pathlib import Path
+          out = Path('public-entry-points')
+          tree = json.loads((out/'tree.json').read_text())['tree']
+          entries = [x for x in tree if re.fullmatch(r'src/latest/ErdosProblems/Erdos\d+[a-z]?\.lean',x['path'])]
+          def fetch(x):
+              url = 'https://raw.githubusercontent.com/plby/lean-proofs/8822f7ddef30fadbd92e1c6ab4ed897af356af5e/'+x['path']
+              for attempt in range(3):
+                  try:
+                      with urllib.request.urlopen(url,timeout=60) as r: data=r.read()
+                      assert len(data)==x['size']
+                      blob=hashlib.sha1(b'blob '+str(len(data)).encode()+b'\0'+data).hexdigest()
+                      assert blob==x['sha'],(x['path'],'Git blob mismatch')
+                      (out/Path(x['path']).name).write_bytes(data)
+                      return {'path':x['path'],'blob':blob,'sha256':hashlib.sha256(data).hexdigest(),'bytes':len(data)}
+                  except Exception:
+                      if attempt==2: raise
+                      time.sleep(2*(attempt+1))
+          with concurrent.futures.ThreadPoolExecutor(max_workers=6) as pool:
+              manifest=list(pool.map(fetch, entries))
+          (out/'manifest.json').write_text(json.dumps(manifest,indent=2))
+          print('Read and byte-verified',len(manifest),'public entry points. No proof is claimed or reused by this data collection.')
+          PY
+          tar -czf public-entry-points.tar.gz public-entry-points
+          sha256sum public-entry-points.tar.gz
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: public-entry-points
+          path: public-entry-points.tar.gz
+          retention-days: 3
+          compression-level: 0
