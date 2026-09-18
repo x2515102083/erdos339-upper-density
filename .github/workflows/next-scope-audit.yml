@@ -1,0 +1,98 @@
+name: Prior scope and targeted library audit
+on:
+  push:
+    branches: [research/complete-next-20260918-b]
+    paths: ['.github/workflows/next-scope-audit.yml']
+permissions:
+  contents: read
+jobs:
+  scope:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Retrieve pinned top-level proofs for private scope comparison
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import urllib.request,json,hashlib,re,pathlib,concurrent.futures,time
+          rev='8822f7ddef30fadbd92e1c6ab4ed897af356af5e'
+          url=f'https://api.github.com/repos/plby/lean-proofs/git/trees/{rev}?recursive=1'
+          tree=json.load(urllib.request.urlopen(url))
+          items=[x for x in tree['tree'] if re.fullmatch(r'src/latest/ErdosProblems/Erdos[0-9]+\.lean',x['path'])]
+          out=pathlib.Path('prior-top-level');out.mkdir()
+          def get(x):
+            url=f"https://raw.githubusercontent.com/plby/lean-proofs/{rev}/{x['path']}"
+            for attempt in range(4):
+              try:
+                data=urllib.request.urlopen(url,timeout=90).read();break
+              except Exception:
+                if attempt==3:raise
+                time.sleep(2**attempt)
+            got=hashlib.sha1(b'blob '+str(len(data)).encode()+b'\0'+data).hexdigest()
+            if got!=x['sha']:raise ValueError(x['path'])
+            (out/pathlib.Path(x['path']).name).write_bytes(data)
+            return {'path':x['path'],'git_blob':got,'sha256':hashlib.sha256(data).hexdigest(),'bytes':len(data)}
+          with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool: records=list(pool.map(get,items))
+          (out/'manifest.json').write_text(json.dumps({'repository':'plby/lean-proofs','commit':rev,'files':records},indent=2))
+          print('Pinned top-level files:',len(records),'bytes:',sum(x['bytes'] for x in records))
+          PY
+          tar -czf prior-top-level.tar.gz prior-top-level
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: pinned-prior-top-level
+          path: prior-top-level.tar.gz
+          retention-days: 7
+  imports:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Fetch pinned compiler and selected dependencies
+        run: |
+          set -euo pipefail
+          curl -fsSL https://github.com/leanprover/lean4/releases/download/v4.32.1/lean-4.32.1-linux.tar.zst -o /tmp/lean.tar.zst
+          mkdir /tmp/lean
+          tar --zstd -xf /tmp/lean.tar.zst -C /tmp/lean --strip-components=1
+          rm /tmp/lean.tar.zst
+          export PATH=/tmp/lean/bin:$PATH
+          cd research/erdos549-small
+          python3 bootstrap.py
+          lake exe cache get Mathlib/Tactic.lean Mathlib/Combinatorics/SimpleGraph/Coloring.lean Mathlib/Combinatorics/SimpleGraph/Acyclic.lean Mathlib/Data/Nat/Factorization/Basic.lean Mathlib/NumberTheory/ArithmeticFunction.lean Mathlib/Analysis/SpecialFunctions/Log/Basic.lean Mathlib/Analysis/SpecialFunctions/Pow/Real.lean Mathlib/Topology/Instances/ENNReal/Lemmas.lean Mathlib/Data/Finset/Powerset.lean Mathlib/Order/Filter/AtTopBot/CountablyGenerated.lean
+          git diff --exit-code -- lake-manifest.json lean-toolchain lakefile.toml
+          tar --exclude='.git' --exclude='*.a' --exclude='*.o' --exclude='*.c' --exclude='*.ilean' --exclude='*.trace' --exclude='*.hash' -I 'zstd -T0 -10' -cf /tmp/targeted-library.tar.zst .lake lake-manifest.json lakefile.toml lean-toolchain bootstrap.py
+          cd /tmp
+          split -b 450M -d targeted-library.tar.zst targeted-part-
+          sha256sum targeted-library.tar.zst targeted-part-* | tee targeted-hashes.txt
+          test ! -f targeted-part-04
+          ls -lh targeted-part-*
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: targeted-part-00
+          path: |
+            /tmp/targeted-part-00
+            /tmp/targeted-hashes.txt
+          compression-level: 0
+          retention-days: 7
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: targeted-part-01
+          path: /tmp/targeted-part-01
+          if-no-files-found: ignore
+          compression-level: 0
+          retention-days: 7
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: targeted-part-02
+          path: /tmp/targeted-part-02
+          if-no-files-found: ignore
+          compression-level: 0
+          retention-days: 7
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: targeted-part-03
+          path: /tmp/targeted-part-03
+          if-no-files-found: ignore
+          compression-level: 0
+          retention-days: 7
