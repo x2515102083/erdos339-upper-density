@@ -6,42 +6,6 @@ on:
 permissions:
   contents: read
 jobs:
-  scope:
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - name: Retrieve pinned top-level proofs for private scope comparison
-        run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          import urllib.request,json,hashlib,re,pathlib,concurrent.futures,time
-          rev='8822f7ddef30fadbd92e1c6ab4ed897af356af5e'
-          url=f'https://api.github.com/repos/plby/lean-proofs/git/trees/{rev}?recursive=1'
-          tree=json.load(urllib.request.urlopen(url))
-          items=[x for x in tree['tree'] if re.fullmatch(r'src/latest/ErdosProblems/Erdos[0-9]+\.lean',x['path'])]
-          out=pathlib.Path('prior-top-level');out.mkdir()
-          def get(x):
-            url=f"https://raw.githubusercontent.com/plby/lean-proofs/{rev}/{x['path']}"
-            for attempt in range(4):
-              try:
-                data=urllib.request.urlopen(url,timeout=90).read();break
-              except Exception:
-                if attempt==3:raise
-                time.sleep(2**attempt)
-            got=hashlib.sha1(b'blob '+str(len(data)).encode()+b'\0'+data).hexdigest()
-            if got!=x['sha']:raise ValueError(x['path'])
-            (out/pathlib.Path(x['path']).name).write_bytes(data)
-            return {'path':x['path'],'git_blob':got,'sha256':hashlib.sha256(data).hexdigest(),'bytes':len(data)}
-          with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool: records=list(pool.map(get,items))
-          (out/'manifest.json').write_text(json.dumps({'repository':'plby/lean-proofs','commit':rev,'files':records},indent=2))
-          print('Pinned top-level files:',len(records),'bytes:',sum(x['bytes'] for x in records))
-          PY
-          tar -czf prior-top-level.tar.gz prior-top-level
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: pinned-prior-top-level
-          path: prior-top-level.tar.gz
-          retention-days: 7
   imports:
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -59,7 +23,17 @@ jobs:
           export PATH=/tmp/lean/bin:$PATH
           cd research/erdos549-small
           python3 bootstrap.py
-          lake exe cache get Mathlib/Tactic.lean Mathlib/Combinatorics/SimpleGraph/Coloring.lean Mathlib/Combinatorics/SimpleGraph/Acyclic.lean Mathlib/Data/Nat/Factorization/Basic.lean Mathlib/NumberTheory/ArithmeticFunction.lean Mathlib/Analysis/SpecialFunctions/Log/Basic.lean Mathlib/Analysis/SpecialFunctions/Pow/Real.lean Mathlib/Topology/Instances/ENNReal/Lemmas.lean Mathlib/Data/Finset/Powerset.lean Mathlib/Order/Filter/AtTopBot/CountablyGenerated.lean
+          python3 - <<'PY'
+          from pathlib import Path
+          root=Path('.lake/packages/mathlib')
+          wanted=['Mathlib/Tactic.lean','Mathlib/Combinatorics/SimpleGraph/Coloring.lean','Mathlib/Combinatorics/SimpleGraph/Acyclic.lean','Mathlib/NumberTheory/ArithmeticFunction/Basic.lean','Mathlib/Analysis/SpecialFunctions/Pow/Real.lean','Mathlib/Algebra/Order/Antidiag/Pi.lean','Mathlib/Data/Nat/Factorization/Basic.lean','Mathlib/Data/Finset/Powerset.lean']
+          selected=[str(root/p) for p in wanted if (root/p).is_file()]
+          if str(root/'Mathlib/Tactic.lean') not in selected: raise SystemExit('missing required tactic module')
+          Path('/tmp/cache-targets.txt').write_text('\n'.join(selected)+'\n')
+          print('Selected modules:',*selected,sep='\n')
+          print('Unavailable optional modules:',*[p for p in wanted if not (root/p).is_file()],sep='\n')
+          PY
+          xargs -d '\n' lake exe cache get </tmp/cache-targets.txt
           git diff --exit-code -- lake-manifest.json lean-toolchain lakefile.toml
           tar --exclude='.git' --exclude='*.a' --exclude='*.o' --exclude='*.c' --exclude='*.ilean' --exclude='*.trace' --exclude='*.hash' -I 'zstd -T0 -10' -cf /tmp/targeted-library.tar.zst .lake lake-manifest.json lakefile.toml lean-toolchain bootstrap.py
           cd /tmp
@@ -73,6 +47,7 @@ jobs:
           path: |
             /tmp/targeted-part-00
             /tmp/targeted-hashes.txt
+            /tmp/cache-targets.txt
           compression-level: 0
           retention-days: 7
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
