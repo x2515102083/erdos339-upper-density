@@ -1,0 +1,122 @@
+name: Next complete proof research environment
+on:
+  push:
+    branches: [research/complete-next-20260918-b]
+    paths: ['.github/workflows/next-research-environment.yml']
+permissions:
+  contents: read
+jobs:
+  sources:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Snapshot public problem statements and catalog
+        run: |
+          set -euo pipefail
+          mkdir sources
+          git clone --depth 1 https://github.com/TheJustinSunPrize/awards.git sources/awards
+          git clone --depth 1 https://github.com/google-deepmind/formal-conjectures.git sources/formal-conjectures
+          git clone --depth 1 https://github.com/teorth/erdosproblems.git sources/erdosproblems
+          for d in sources/*; do printf '%s ' "$d"; git -C "$d" rev-parse HEAD; done | tee sources/revisions.txt
+          curl -fsSL https://api.github.com/repos/plby/lean-proofs/git/trees/8822f7ddef30fadbd92e1c6ab4ed897af356af5e?recursive=1 -o sources/prior-proof-tree.json
+          tar --exclude='.git' -czf sources.tar.gz sources
+      - uses: actions/upload-artifact@v4
+        with:
+          name: next-public-sources
+          path: sources.tar.gz
+          retention-days: 7
+  lean:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Fetch official pinned compiler and preserve release metadata
+        run: |
+          set -euo pipefail
+          curl -fsSL https://api.github.com/repos/leanprover/lean4/releases/tags/v4.32.1 -o release.json
+          curl --proto '=https' --tlsv1.2 -fsSL https://github.com/leanprover/lean4/releases/download/v4.32.1/lean-4.32.1-linux.tar.zst -o lean.tar.zst
+          python3 - <<'PY'
+          import json,hashlib
+          r=json.load(open('release.json'))
+          a=next(x for x in r['assets'] if x['name']=='lean-4.32.1-linux.tar.zst')
+          actual='sha256:'+hashlib.file_digest(open('lean.tar.zst','rb'),'sha256').hexdigest()
+          if a.get('digest'):
+            if actual != a['digest']: raise SystemExit('release digest mismatch')
+          json.dump({'asset':a,'observed_digest':actual},open('compiler-provenance.json','w'),indent=2)
+          PY
+          mkdir lean
+          tar --zstd -xf lean.tar.zst -C lean --strip-components=1
+          lean/bin/lean --version
+          rm lean.tar.zst
+          tar --exclude='*.a' --exclude='*.o' --exclude='*.c' --exclude='*.h' --exclude='src' --exclude='share' -I 'zstd -T0 -3' -cf lean-minimal.tar.zst lean compiler-provenance.json release.json
+          split -b 450M -d lean-minimal.tar.zst lean-part-
+          sha256sum lean-minimal.tar.zst lean-part-* | tee lean-hashes.txt
+          ls -lh lean-part-*
+      - uses: actions/upload-artifact@v4
+        with:
+          name: next-lean-part-00
+          path: |
+            lean-part-00
+            lean-hashes.txt
+            compiler-provenance.json
+          retention-days: 7
+      - uses: actions/upload-artifact@v4
+        with:
+          name: next-lean-part-01
+          path: lean-part-01
+          if-no-files-found: ignore
+          retention-days: 7
+      - uses: actions/upload-artifact@v4
+        with:
+          name: next-lean-part-02
+          path: lean-part-02
+          if-no-files-found: ignore
+          retention-days: 7
+  mathlib:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Prepare pinned library imports
+        run: |
+          set -euo pipefail
+          curl -fsSL https://github.com/leanprover/lean4/releases/download/v4.32.1/lean-4.32.1-linux.tar.zst -o /tmp/lean.tar.zst
+          mkdir /tmp/lean
+          tar --zstd -xf /tmp/lean.tar.zst -C /tmp/lean --strip-components=1
+          rm /tmp/lean.tar.zst
+          export PATH=/tmp/lean/bin:$PATH
+          cd research/erdos549-small
+          python3 bootstrap.py
+          lake exe cache get
+          git diff --exit-code -- lake-manifest.json lean-toolchain lakefile.toml
+          tar --exclude='.git' --exclude='*.a' --exclude='*.o' --exclude='*.c' -I 'zstd -T0 -3' -cf /tmp/mathlib-workspace.tar.zst .lake lake-manifest.json lakefile.toml lean-toolchain bootstrap.py
+          cd /tmp
+          split -b 450M -d mathlib-workspace.tar.zst mathlib-part-
+          sha256sum mathlib-workspace.tar.zst mathlib-part-* | tee mathlib-hashes.txt
+          ls -lh mathlib-part-*
+      - uses: actions/upload-artifact@v4
+        with:
+          name: next-mathlib-part-00
+          path: |
+            /tmp/mathlib-part-00
+            /tmp/mathlib-hashes.txt
+          retention-days: 7
+      - uses: actions/upload-artifact@v4
+        with:
+          name: next-mathlib-part-01
+          path: /tmp/mathlib-part-01
+          if-no-files-found: ignore
+          retention-days: 7
+      - uses: actions/upload-artifact@v4
+        with:
+          name: next-mathlib-part-02
+          path: /tmp/mathlib-part-02
+          if-no-files-found: ignore
+          retention-days: 7
+      - uses: actions/upload-artifact@v4
+        with:
+          name: next-mathlib-part-03
+          path: /tmp/mathlib-part-03
+          if-no-files-found: ignore
+          retention-days: 7
