@@ -1,0 +1,59 @@
+name: Research scope screening
+on:
+  push:
+    branches: [research/new-prize-20260918]
+    paths: [.github/workflows/research-scope-screen.yml]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  screen:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Read archived public entry points
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh run download 35312872078 -R x2515102083/erdos339-upper-density -n public-entry-points -D input
+          gh run download 35312203056 -R x2515102083/erdos339-upper-density -n public-research-data -D input
+          tar -xzf input/public-entry-points.tar.gz
+          tar -xzf input/research-data.tar.gz
+          python3 - <<'PY' | tee scope-report.txt
+          from pathlib import Path
+          import re,json
+          root=Path('public-entry-points')
+          print('=== Syntactic screening: findings require semantic review ===')
+          for f in sorted(root.glob('*.lean')):
+              s=f.read_text()
+              ss=re.sub(r'/\-.*?\-/','',s,flags=re.S)
+              ss=re.sub(r'--[^\n]*','',ss)
+              words=[w for w in ['sorry','axiom','admit'] if re.search(r'\b'+w+r'\b',ss)]
+              if words: print('UNPROVED-TOKEN',f.name,words)
+              for line in s[:8000].splitlines():
+                  if re.search(r'partial result|partial formal|conditional|unproved|does not solve|not resolve|weaker than|missing proof',line,re.I):print('SCOPE',f.name,line[:220])
+          print('=== Specific source matches ===')
+          for f in sorted(root.glob('*.lean')):
+              s=f.read_text()
+              if re.search(r'CFP22|lower logarithmic|upper logarithmic density|Burr.*Erd|Po15b|AlFr88|BBMST22',s[:20000],re.I):
+                  print('MATCH',f.name)
+                  # Print descriptive comments, not inferred authorship or verification.
+                  for b in re.findall(r'/\-(?:!|\*)?(.*?)\-/',s,re.S)[:8]:
+                      if re.search(r'logarithmic|subset.sum|divisor|covering|prime|problem',b,re.I):print(b[:1800])
+          print('=== Available root headers for potentially unsubmitted catalog entries ===')
+          for no in [594,868,869,870,880,921,1048,1050,1052,1202,1205,1211,1213,1214,1215,1216,1217]:
+              f=root/f'Erdos{no}.lean'
+              if not f.exists():continue
+              s=f.read_text()
+              print('HEADER',f.name)
+              for b in re.findall(r'/\-(?:!|\*)?(.*?)\-/',s,re.S):
+                  if re.search(r'Erd[oőö]s|Problem|problem|conjecture',b):print(b[:1100])
+                  if len(b)>100: break
+          PY
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: scope-report
+          path: scope-report.txt
+          retention-days: 3
