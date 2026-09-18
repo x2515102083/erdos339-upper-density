@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
           persist-credentials: false
       - name: Install Lean 4.33.0
@@ -22,7 +22,7 @@ jobs:
           mkdir /tmp/lean
           tar --zstd -xf /tmp/lean.tar.zst -C /tmp/lean --strip-components=1
           echo /tmp/lean/bin >> "$GITHUB_PATH"
-      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830
+      - uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25
         with:
           path: .lake/packages
           key: lcm-lean433-mathlib-db584cd6d46c92f209a44c0f1c829460d327499d
