@@ -1,0 +1,110 @@
+name: Prepare research workbench
+
+on:
+  push:
+    branches: [research/new-prize-20260918]
+    paths: [.github/workflows/research-workbench.yml]
+
+permissions:
+  contents: read
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Collect public problem and statement sources
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p research-data
+          git clone --depth 1 https://github.com/TheJustinSunPrize/awards.git research-data/awards
+          git clone --depth 1 https://github.com/google-deepmind/formal-conjectures.git research-data/formal-conjectures
+          git -C research-data/awards rev-parse HEAD > research-data/awards-sha.txt
+          git -C research-data/formal-conjectures rev-parse HEAD > research-data/formal-conjectures-sha.txt
+          gh api 'repos/plby/lean-proofs/git/trees/8822f7ddef30fadbd92e1c6ab4ed897af356af5e?recursive=1' > research-data/plby-tree-pinned.json
+          gh api 'repos/TheJustinSunPrize/awards/pulls?state=all&per_page=100' --paginate --slurp > research-data/awards-prs.json
+          # Public primary-source article; archival bytes only, no executable content.
+          curl --proto '=https' --tlsv1.2 -fL https://www.cmls.polytechnique.fr/perso/plagne/Erdos-Burr.pdf -o research-data/Erdos-Burr.pdf
+          tar --exclude='.git' -czf research-data.tar.gz research-data
+          sha256sum research-data.tar.gz
+      - name: Preserve public screening data
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: public-research-data
+          path: research-data.tar.gz
+          retention-days: 3
+          compression-level: 0
+      - name: Install pinned Lean and restore pinned Mathlib cache
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --proto '=https' --tlsv1.2 -sSfL https://elan.lean-lang.org/elan-init.sh -o /tmp/elan-init.sh
+          sh /tmp/elan-init.sh -y --default-toolchain none
+          export PATH="$HOME/.elan/bin:$PATH"
+          lean --version
+          lake exe cache get
+          git diff --exit-code -- lean-toolchain lakefile.toml lake-manifest.json
+          mkdir -p workbench/project
+          cp lean-toolchain lakefile.toml lake-manifest.json workbench/project/
+          cp -a .lake workbench/project/
+          toolchain="$(dirname "$(dirname "$(elan which lean)")")"
+          cp -a "$toolchain" workbench/lean
+          # Keep compiled Lean modules, interpreter/plugin data and shared libraries.
+          # Static archives and compiler intermediates are not needed for elaboration.
+          find workbench -type d -name .git -prune -exec rm -rf '{}' +
+          find workbench -type f \( -name '*.a' -o -name '*.o' -o -name '*.c' \) -delete
+          du -sh workbench/*
+          find workbench -type f -print0 | sort -z | xargs -0 sha256sum > workbench-sha256.txt
+          tar --use-compress-program='zstd -T0 -6' -cf workbench.tar.zst workbench
+          split -b 450M -d -a 2 workbench.tar.zst workbench.part-
+          sha256sum workbench.tar.zst workbench.part-* | tee workbench-archive-sha256.txt
+          ls -lh workbench.tar.zst workbench.part-*
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: workbench-metadata
+          path: |
+            workbench-sha256.txt
+            workbench-archive-sha256.txt
+          retention-days: 3
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: workbench-00
+          path: workbench.part-00
+          compression-level: 0
+          retention-days: 3
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: workbench-01
+          path: workbench.part-01
+          compression-level: 0
+          retention-days: 3
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: workbench-02
+          path: workbench.part-02
+          compression-level: 0
+          retention-days: 3
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: workbench-03
+          path: workbench.part-03
+          compression-level: 0
+          retention-days: 3
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: workbench-04
+          path: workbench.part-04
+          compression-level: 0
+          retention-days: 3
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: workbench-05
+          path: workbench.part-05
+          compression-level: 0
+          retention-days: 3
