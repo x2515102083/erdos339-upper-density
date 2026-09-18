@@ -20,7 +20,7 @@ jobs:
           for d in sources/*; do printf '%s ' "$d"; git -C "$d" rev-parse HEAD; done | tee sources/revisions.txt
           curl -fsSL https://api.github.com/repos/plby/lean-proofs/git/trees/8822f7ddef30fadbd92e1c6ab4ed897af356af5e?recursive=1 -o sources/prior-proof-tree.json
           tar --exclude='.git' -czf sources.tar.gz sources
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6 (Node.js 24)
         with:
           name: next-public-sources
           path: sources.tar.gz
@@ -51,7 +51,7 @@ jobs:
           split -b 450M -d lean-minimal.tar.zst lean-part-
           sha256sum lean-minimal.tar.zst lean-part-* | tee lean-hashes.txt
           ls -lh lean-part-*
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6 (Node.js 24)
         with:
           name: next-lean-part-00
           path: |
@@ -59,13 +59,13 @@ jobs:
             lean-hashes.txt
             compiler-provenance.json
           retention-days: 7
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6 (Node.js 24)
         with:
           name: next-lean-part-01
           path: lean-part-01
           if-no-files-found: ignore
           retention-days: 7
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6 (Node.js 24)
         with:
           name: next-lean-part-02
           path: lean-part-02
@@ -75,7 +75,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6 (Node.js 24)
         with:
           persist-credentials: false
       - name: Prepare pinned library imports
@@ -95,26 +95,26 @@ jobs:
           split -b 450M -d mathlib-workspace.tar.zst mathlib-part-
           sha256sum mathlib-workspace.tar.zst mathlib-part-* | tee mathlib-hashes.txt
           ls -lh mathlib-part-*
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6 (Node.js 24)
         with:
           name: next-mathlib-part-00
           path: |
             /tmp/mathlib-part-00
             /tmp/mathlib-hashes.txt
           retention-days: 7
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6 (Node.js 24)
         with:
           name: next-mathlib-part-01
           path: /tmp/mathlib-part-01
           if-no-files-found: ignore
           retention-days: 7
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6 (Node.js 24)
         with:
           name: next-mathlib-part-02
           path: /tmp/mathlib-part-02
           if-no-files-found: ignore
           retention-days: 7
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6 (Node.js 24)
         with:
           name: next-mathlib-part-03
           path: /tmp/mathlib-part-03
